@@ -110,6 +110,109 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Update Profile Name and Email
+  const updateProfile = async (name, email) => {
+    try {
+      if (!user?.id) return { success: false, error: 'المستخدم غير مسجل' };
+      const cleanName = name.trim();
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (!cleanName || !cleanEmail) {
+        showToast('يرجى ملء كافة الحقول المطلوبة', 'error');
+        return { success: false, error: 'Missing fields' };
+      }
+
+      // If email changed, check uniqueness
+      if (cleanEmail !== user.email?.toLowerCase()) {
+        const { data: existing } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', cleanEmail)
+          .neq('id', user.id)
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          showToast('هذا البريد الإلكتروني مستخدم بالفعل بحساب آخر', 'error');
+          return { success: false, error: 'Email in use' };
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({ name: cleanName, email: cleanEmail })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) {
+        showToast('تعذر تحديث البيانات: ' + error.message, 'error');
+        return { success: false, error: error.message };
+      }
+
+      const updatedUser = { ...user, ...data };
+      setUser(updatedUser);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
+      showToast('تم تحديث المعلومات بنجاح', 'success');
+      return { success: true, user: updatedUser };
+    } catch (err) {
+      showToast(err.message || 'حدث خطأ أثناء التحديث', 'error');
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Update Password
+  const updatePassword = async (currentPassword, newPassword) => {
+    try {
+      if (!user?.id) return { success: false, error: 'المستخدم غير مسجل' };
+      if (!currentPassword || !newPassword) {
+        showToast('يرجى إدخال كلمة المرور الحالية والجديدة', 'error');
+        return { success: false, error: 'Missing fields' };
+      }
+
+      if (newPassword.length < 4) {
+        showToast('كلمة المرور الجديدة يجب أن تحتوي على 4 أحرف أو أرقام على الأقل', 'error');
+        return { success: false, error: 'Password too short' };
+      }
+
+      // Check current password from DB
+      const { data: dbUser, error: checkErr } = await supabase
+        .from('users')
+        .select('password')
+        .eq('id', user.id)
+        .single();
+
+      if (checkErr || !dbUser) {
+        showToast('تعذر التحقق من الحساب في قاعدة البيانات', 'error');
+        return { success: false, error: 'User check failed' };
+      }
+
+      if (dbUser.password !== currentPassword) {
+        showToast('كلمة المرور الحالية غير صحيحة!', 'error');
+        return { success: false, error: 'Incorrect current password' };
+      }
+
+      // Update password
+      const { error } = await supabase
+        .from('users')
+        .update({ password: newPassword })
+        .eq('id', user.id);
+
+      if (error) {
+        showToast('تعذر حفظ كلمة المرور الجديدة: ' + error.message, 'error');
+        return { success: false, error: error.message };
+      }
+
+      const updatedUser = { ...user, password: newPassword };
+      setUser(updatedUser);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updatedUser));
+      showToast('تم تغيير كلمة المرور بنجاح!', 'success');
+      return { success: true };
+    } catch (err) {
+      showToast(err.message || 'حدث خطأ في تغيير كلمة المرور', 'error');
+      return { success: false, error: err.message };
+    }
+  };
+
   // Sign Out
   const signOut = () => {
     localStorage.removeItem(USER_STORAGE_KEY);
@@ -124,6 +227,8 @@ export function AuthProvider({ children }) {
         loading,
         signIn,
         signUp,
+        updateProfile,
+        updatePassword,
         signOut,
       }}
     >
