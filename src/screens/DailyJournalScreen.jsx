@@ -1,13 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CalendarDays, Sun, Moon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, RefreshCw, FileText, X } from 'lucide-react';
+import { CalendarDays, Sun, Moon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, RefreshCw, FileText, X, Lock } from 'lucide-react';
 import { cafeApi } from '../services/cafeApi';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import BottomSheet from '../components/BottomSheet';
 import MonthlyInvoiceModal from '../components/MonthlyInvoiceModal';
 import { ListSkeleton } from '../components/Skeleton';
 
 export default function DailyJournalScreen() {
+  const { hasPermission } = useAuth();
   const { showToast } = useToast();
+
+  const canView = hasPermission('view');
 
   // Current month default in format YYYY-MM
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -27,6 +31,10 @@ export default function DailyJournalScreen() {
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { days: resDays, monthSummary: resSummary, error } = await cafeApi.getDailyJournal(selectedMonth);
     if (!error) {
@@ -36,9 +44,12 @@ export default function DailyJournalScreen() {
       showToast('تعذر تحميل بيانات اليوميات', 'error');
     }
     setLoading(false);
-  }, [selectedMonth, showToast]);
+  }, [canView, selectedMonth, showToast]);
 
   useEffect(() => {
+    if (!canView) {
+      return;
+    }
     let active = true;
     const fetchInitial = async () => {
       const { days: resDays, monthSummary: resSummary } = await cafeApi.getDailyJournal(selectedMonth);
@@ -52,7 +63,7 @@ export default function DailyJournalScreen() {
     return () => {
       active = false;
     };
-  }, [selectedMonth]);
+  }, [canView, selectedMonth]);
 
   // Navigate months
   const handlePrevMonth = () => {
@@ -96,6 +107,24 @@ export default function DailyJournalScreen() {
     setSelectedDay(day);
     setDaySheetOpen(true);
   };
+
+  if (!canView) {
+    return (
+      <div className="w-full pb-32 animate-fade-in pt-4">
+        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-8 text-center my-6">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h4 className="text-base font-bold text-white mb-1">
+            صلاحية العرض (View) غير مفعلة
+          </h4>
+          <p className="text-xs text-slate-400 max-w-xs mx-auto">
+            حسابك لا يملك صلاحية الاطلاع على تقارير اليوميات والأرباح الشهرية. يرجى التواصل مع إدارة المقهى.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full pb-32 animate-fade-in">

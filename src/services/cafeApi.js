@@ -89,7 +89,41 @@ export const cafeApi = {
     return { data: parseTransactionRow(data), error: null };
   },
 
-  // 3. DELETE TRANSACTION
+  // 3. UPDATE TRANSACTION (FOR EDIT PERMISSION)
+  async updateTransaction(id, { type = 'expense', title, amount, date, shift = '1', server_name = 'ياسين', description = '' }) {
+    const today = new Date().toISOString().split('T')[0];
+    const cleanDate = date || today;
+
+    const metadataStr = JSON.stringify({
+      type,
+      shift: String(shift || '1'),
+      server: server_name || 'ياسين',
+      note: description || '',
+    });
+
+    const payload = {
+      title: title.trim(),
+      amount: Number(amount),
+      date: cleanDate,
+      description: metadataStr,
+    };
+
+    const { data, error } = await supabase
+      .from('expenses')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating transaction:', error);
+      return { data: null, error };
+    }
+
+    return { data: parseTransactionRow(data), error: null };
+  },
+
+  // 4. DELETE TRANSACTION
   async deleteTransaction(id) {
     const { error } = await supabase.from('expenses').delete().eq('id', id);
     return { error };
