@@ -13,8 +13,9 @@ import {
   X,
   Edit2,
   Lock,
+  Clock,
 } from 'lucide-react';
-import { cafeApi } from '../services/cafeApi';
+import { cafeApi, getLocalDateStr } from '../services/cafeApi';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import BottomSheet from '../components/BottomSheet';
@@ -41,9 +42,12 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
   const [amount, setAmount] = useState('');
   const [shift, setShift] = useState(() => (activePeriod === 'ليل' ? '2' : '1'));
   const [serverName, setServerName] = useState(() => activeServer || 'ياسين');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getLocalDateStr());
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Track current 24h local day so screen clears automatically at midnight
+  const [todayStr, setTodayStr] = useState(() => getLocalDateStr());
 
   // Filter state: 'all' | 'income' | 'expense'
   const [filterType, setFilterType] = useState('all');
@@ -52,19 +56,19 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [txToDelete, setTxToDelete] = useState(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (silent = false) => {
     if (!canView) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     const { data, error } = await cafeApi.getTransactions();
     if (!error) {
       setTransactions(data || []);
-    } else {
+    } else if (!silent) {
       showToast('تعذر تحميل العمليات', 'error');
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [canView, showToast]);
 
   useEffect(() => {
@@ -86,25 +90,55 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
     };
   }, [canView]);
 
+  // Auto-rollover every 24h (midnight local time) & refresh when app resumes
+  useEffect(() => {
+    const syncCurrentDay = () => {
+      const currentDay = getLocalDateStr();
+      setTodayStr((prev) => (prev === currentDay ? prev : currentDay));
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncCurrentDay();
+        if (canView) {
+          loadData(true);
+        }
+      }
+    };
+
+    const intervalId = setInterval(syncCurrentDay, 30000);
+    window.addEventListener('focus', syncCurrentDay);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', syncCurrentDay);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [canView, loadData]);
+
+  // Keep ONLY current 24h day transactions on this page; older history remains saved in Daily Journal (اليوميات)
+  const todayTransactions = useMemo(() => {
+    return transactions.filter((t) => t.date === todayStr);
+  }, [transactions, todayStr]);
+
   // Today calculations
-  const todayStr = new Date().toISOString().split('T')[0];
   const todayStats = useMemo(() => {
-    const todayTxs = transactions.filter((t) => t.date === todayStr);
-    const madakhil = todayTxs
+    const madakhil = todayTransactions
       .filter((t) => t.type === 'income')
       .reduce((acc, curr) => acc + curr.amount, 0);
-    const massarif = todayTxs
+    const massarif = todayTransactions
       .filter((t) => t.type === 'expense')
       .reduce((acc, curr) => acc + curr.amount, 0);
     const safi = madakhil - massarif;
     return { madakhil, massarif, safi };
-  }, [transactions, todayStr]);
+  }, [todayTransactions]);
 
-  // Filtered transactions
+  // Filtered transactions (strictly current 24h day)
   const filteredTransactions = useMemo(() => {
-    if (filterType === 'all') return transactions;
-    return transactions.filter((t) => t.type === filterType);
-  }, [transactions, filterType]);
+    if (filterType === 'all') return todayTransactions;
+    return todayTransactions.filter((t) => t.type === filterType);
+  }, [todayTransactions, filterType]);
 
   // Quick suggestions
   const expenseSuggestions = [
@@ -137,7 +171,7 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
     setAmount('');
     setShift(activePeriod === 'ليل' ? '2' : '1');
     setServerName(activeServer || 'ياسين');
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(getLocalDateStr());
     setDescription('');
     setSheetOpen(true);
   };
@@ -154,7 +188,7 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
     setAmount('');
     setShift(activePeriod === 'ليل' ? '2' : '1');
     setServerName(activeServer || 'ياسين');
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(getLocalDateStr());
     setDescription('');
     setSheetOpen(true);
   };
@@ -171,7 +205,7 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
     setAmount(String(tx.amount || ''));
     setShift(tx.shift || '1');
     setServerName(tx.server_name || activeServer || 'ياسين');
-    setDate(tx.date || new Date().toISOString().split('T')[0]);
+    setDate(tx.date || getLocalDateStr());
     setDescription(tx.note || '');
     setSheetOpen(true);
   };
@@ -210,12 +244,17 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
     if (result.error) {
       showToast('حدث خطأ أثناء الحفظ: ' + result.error.message, 'error');
     } else {
+      const isTodayEntry = (payload.date || todayStr) === todayStr;
       showToast(
         editingTxId
-          ? 'تم تعديل العملية بنجاح'
-          : formType === 'income'
-          ? 'تم تسجيل المدخول بنجاح'
-          : 'تم تسجيل المصروف بنجاح',
+          ? isTodayEntry
+            ? 'تم تعديل العملية بنجاح'
+            : `تم نقل العملية إلى سجل اليوميات (${payload.date})`
+          : isTodayEntry
+          ? formType === 'income'
+            ? 'تم تسجيل المدخول بنجاح'
+            : 'تم تسجيل المصروف بنجاح'
+          : `تم الحفظ في سجل اليوميات ليوم ${payload.date}`,
         'success'
       );
       setSheetOpen(false);
@@ -334,6 +373,18 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
             </div>
           </div>
 
+          {/* 24h Cycle Indicator */}
+          <div className="flex items-center justify-between gap-2 bg-slate-900/60 border border-slate-800/80 rounded-xl px-3 py-2 mb-3 text-[11px]">
+            <span className="text-slate-300 font-bold flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>سجل اليوم (24 ساعة)</span>
+              <span className="text-slate-500 font-normal">• {todayStr}</span>
+            </span>
+            <span className="text-slate-400 shrink-0">
+              الأرشيف في <strong className="text-amber-400">اليوميات</strong>
+            </span>
+          </div>
+
           {/* Filter Tabs & Count */}
           <div className="flex items-center justify-between mb-2.5 px-1">
             <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
@@ -373,7 +424,7 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
             </div>
 
             <span className="text-xs font-medium text-slate-400">
-              {filteredTransactions.length} عملية
+              {filteredTransactions.length} عملية اليوم
             </span>
           </div>
 
@@ -385,11 +436,11 @@ export default function ExpensesScreen({ server: activeServer, period: activePer
               <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-400">
                 <Wallet className="w-6 h-6" />
               </div>
-              <h4 className="text-base font-bold text-white mb-1">لا توجد عمليات مسجلة</h4>
-              <p className="text-xs text-slate-400 mb-4">
+              <h4 className="text-base font-bold text-white mb-1">لا توجد عمليات مسجلة اليوم</h4>
+              <p className="text-xs text-slate-400 mb-4 max-w-xs mx-auto">
                 {canAdd
-                  ? 'استخدم الزرين بالأعلى لإضافة المداخيل والمصاريف اليومية.'
-                  : 'ليس لديك صلاحية الإضافة حالياً.'}
+                  ? 'هذه الصفحة تعرض مصاريف ومداخيل اليوم (24 ساعة) فقط، والعمليات السابقة محفوظة تلقائياً في تبويب اليوميات.'
+                  : 'لا توجد عمليات مسجلة اليوم، وليس لديك صلاحية الإضافة حالياً.'}
               </p>
             </div>
           ) : (

@@ -1,5 +1,18 @@
 import { supabase } from '../supabaseClient';
 
+export function getLocalDateStr(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getLocalMonthStr(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
 // Helper to parse metadata stored in description or columns
 function parseTransactionRow(row) {
   let type = 'expense';
@@ -24,11 +37,22 @@ function parseTransactionRow(row) {
   if (row.shift) shift = String(row.shift);
   if (row.server_name) server_name = row.server_name;
 
+  let resolvedDate = row.date;
+  if (!resolvedDate && row.created_at) {
+    const createdDate = new Date(row.created_at);
+    resolvedDate = Number.isNaN(createdDate.getTime())
+      ? row.created_at.split('T')[0]
+      : getLocalDateStr(createdDate);
+  }
+  if (!resolvedDate) {
+    resolvedDate = getLocalDateStr();
+  }
+
   return {
     id: row.id,
     title: row.title || 'بدون عنوان',
     amount: Number(row.amount || 0),
-    date: row.date || (row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+    date: resolvedDate,
     type, // 'expense' | 'income'
     shift, // '1' (صباح) | '2' (ليل)
     server_name, // 'ياسين' | 'مختار'
@@ -57,7 +81,7 @@ export const cafeApi = {
 
   // 2. ADD TRANSACTION (EXPENSE OR INCOME)
   async addTransaction({ type = 'expense', title, amount, date, shift = '1', server_name = 'ياسين', description = '' }) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateStr();
     const cleanDate = date || today;
 
     // Encode metadata in description JSON so it works on any table schema
@@ -91,7 +115,7 @@ export const cafeApi = {
 
   // 3. UPDATE TRANSACTION (FOR EDIT PERMISSION)
   async updateTransaction(id, { type = 'expense', title, amount, date, shift = '1', server_name = 'ياسين', description = '' }) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateStr();
     const cleanDate = date || today;
 
     const metadataStr = JSON.stringify({
@@ -138,7 +162,7 @@ export const cafeApi = {
     }
 
     // Determine current month if not passed (Format: YYYY-MM)
-    const currentMonthStr = selectedMonth || new Date().toISOString().slice(0, 7);
+    const currentMonthStr = selectedMonth || getLocalMonthStr();
 
     // Group transactions by date
     const groupedByDate = {};

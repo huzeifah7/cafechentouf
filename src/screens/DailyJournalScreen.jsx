@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CalendarDays, Sun, Moon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, RefreshCw, FileText, X, Lock } from 'lucide-react';
-import { cafeApi } from '../services/cafeApi';
+import { cafeApi, getLocalMonthStr } from '../services/cafeApi';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import BottomSheet from '../components/BottomSheet';
@@ -14,7 +14,7 @@ export default function DailyJournalScreen() {
   const canView = hasPermission('view');
 
   // Current month default in format YYYY-MM
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(() => getLocalMonthStr());
 
   const [days, setDays] = useState([]);
   const [monthSummary, setMonthSummary] = useState({
@@ -69,13 +69,13 @@ export default function DailyJournalScreen() {
   const handlePrevMonth = () => {
     const [y, m] = selectedMonth.split('-').map(Number);
     const prevDate = new Date(y, m - 2, 1);
-    setSelectedMonth(prevDate.toISOString().slice(0, 7));
+    setSelectedMonth(getLocalMonthStr(prevDate));
   };
 
   const handleNextMonth = () => {
     const [y, m] = selectedMonth.split('-').map(Number);
     const nextDate = new Date(y, m, 1);
-    setSelectedMonth(nextDate.toISOString().slice(0, 7));
+    setSelectedMonth(getLocalMonthStr(nextDate));
   };
 
   // Format month name in Arabic
