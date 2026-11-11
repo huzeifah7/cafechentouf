@@ -28,7 +28,7 @@ function MainApp() {
   // 1. Loading state
   if (loading) {
     return (
-      <div className="min-h-screen w-full max-w-md mx-auto flex flex-col items-center justify-center p-6 text-center">
+      <div className="app-safe-top min-h-screen w-full max-w-md mx-auto flex flex-col items-center justify-center p-6 text-center">
         <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-4 animate-bounce">
           <Coffee className="w-8 h-8" />
         </div>
@@ -54,7 +54,7 @@ function MainApp() {
       />
 
       {/* Screen Body */}
-      <main className="flex-1 w-full px-3.5 pt-3">
+      <main className="flex-1 w-full px-3.5 pt-4">
         {activeTab === 'expenses' && (
           <ExpensesScreen server={server} period={period} />
         )}

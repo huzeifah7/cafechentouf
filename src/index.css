@@ -79,6 +79,11 @@ input[type=number] {
   border-radius: 9999px;
 }
 
+/* Generous top safe-area padding for mobile browsers, iOS notch/Dynamic Island & standalone PWA */
+.app-safe-top {
+  padding-top: max(calc(env(safe-area-inset-top, 0px) + 1.75rem), 3.5rem);
+}
+
 /* Print styles for Invoice */
 @media print {
   body {

@@ -23,7 +23,7 @@ export default function Header({
 
   return (
     <>
-      <header className="sticky top-0 z-30 w-full max-w-md mx-auto bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 px-4 pt-[max(env(safe-area-inset-top),1.75rem)] pb-3 shadow-md">
+      <header className="app-safe-top sticky top-0 z-30 w-full max-w-md mx-auto bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 px-4 pb-3.5 shadow-md">
         {/* Top row: Cafe Name + User Name Button (Click to edit profile) + Logout Button (with confirm) */}
         <div className="flex items-center justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-2">

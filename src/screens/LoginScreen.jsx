@@ -24,7 +24,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <div className="min-h-screen w-full max-w-md mx-auto flex flex-col justify-center px-5 pt-[max(env(safe-area-inset-top),2rem)] pb-8 animate-fade-in">
+    <div className="app-safe-top min-h-screen w-full max-w-md mx-auto flex flex-col justify-center px-5 pb-8 animate-fade-in">
       {/* Brand Header */}
       <div className="text-center mb-6">
         <div className="w-20 h-20 mx-auto mb-3.5 rounded-3xl bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-400 flex items-center justify-center text-slate-950 shadow-2xl shadow-amber-500/30">
